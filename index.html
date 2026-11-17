@@ -357,6 +357,7 @@ const MENU = [
   {id:'inicio',       t:'Inicio',            i:'fa-gauge-high'},
   {id:'vender',       t:'Vender',            i:'fa-cash-register'},
   {id:'pedidos',      t:'Pedidos',           i:'fa-clipboard-list'},
+  {id:'pendientes',   t:'Vista Rápida',       i:'fa-bolt'},
   {id:'catalogo',     t:'Catálogo en Línea', i:'fa-store'},
   {id:'anuncios',     t:'Anuncios',           i:'fa-bullhorn'},
   {id:'finanzas',     t:'Finanzas',          i:'fa-chart-line'},
@@ -381,8 +382,8 @@ let _fotoTmp=null;
 const ROLE_PERMS = {
   'Administrador': '*',
   'admin': '*',
-  'Ventas':     ['inicio','vender','pedidos','catalogo','clientes','cupon','promos','transacciones'],
-  'Inventario': ['inicio','inventario','catalogo','anuncios','pedidos'],
+  'Ventas':     ['inicio','vender','pedidos','pendientes','catalogo','clientes','cupon','promos','transacciones'],
+  'Inventario': ['inicio','inventario','pendientes','catalogo','anuncios','pedidos'],
   'Finanzas':   ['inicio','finanzas','ingresos','cxc','transacciones','estadisticas','reportes']
 };
 function rolActual(){ return (window.USUARIO_ACTUAL&&window.USUARIO_ACTUAL.rol)||'Administrador'; }
@@ -451,6 +452,209 @@ function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('-
 function toast(msg){ const t=document.getElementById('toast'); document.getElementById('toastMsg').textContent=msg; t.classList.remove('hidden'); t.classList.add('flex'); clearTimeout(window._tt); window._tt=setTimeout(()=>{t.classList.add('hidden');t.classList.remove('flex');},2600); }
 function openModal(html){ document.getElementById('modalBody').innerHTML=html; document.getElementById('modal').classList.add('open'); }
 function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+/* ============================================================
+   FACTURACION KYTE — control Pedido → Facturado → Entregado
+   La factura OFICIAL la emite el dueno a mano en Kyte. El panel
+   solo anota el numero de factura y en que paso va cada pedido.
+   Se guarda en localStorage y se sincroniza con Firebase en
+   factura_kyte/<pedido>, para no perderlo al cambiar de equipo.
+   ============================================================ */
+let KYTE_FACT = {};   /* pedido -> {pedido, numFactura, fechaISO, fecha, cliente, tel, total, origen} */
+(function loadKyteFact(){
+  try{ const s=localStorage.getItem('PG_KYTE_FACT_V1'); if(s){ const o=JSON.parse(s); if(o&&typeof o==='object') KYTE_FACT=o; } }catch(e){}
+})();
+function saveKyteFact(){ try{ localStorage.setItem('PG_KYTE_FACT_V1',JSON.stringify(KYTE_FACT)); }catch(e){} }
+
+function kytePushFact(pedido, data){
+  try{
+    if(window.PGSync&&window.PGSync.ok&&window.PGSync.setAt){
+      window.PGSync.setAt('factura_kyte/'+pedido, data);
+    }
+  }catch(e){}
+}
+function kyteMergeCloud(d){
+  if(!d||typeof d!=='object') return false;
+  let cambio=false;
+  Object.keys(d).forEach(k=>{
+    const v=d[k]; if(!v||!v.numFactura) return;
+    const local=KYTE_FACT[k];
+    /* Gana el registro mas completo / mas reciente. Nunca borra uno local. */
+    if(!local || (+new Date(v.fechaISO||0) >= +new Date(local.fechaISO||0))){ KYTE_FACT[k]=v; cambio=true; }
+  });
+  if(cambio) saveKyteFact();
+  return cambio;
+}
+
+/* Estado del pedido en tres pasos */
+function estadoPedido(p){
+  if(!p) return {k:'cancelado', label:'Cancelado', color:'bg-gray-100 text-gray-600', icon:'fa-ban'};
+  if(DELIVERED_ONLINE[p.recibo]||ENTREGAS[p.recibo]) return {k:'entregado', label:'Entregado', color:'bg-green-100 text-green-700', icon:'fa-circle-check'};
+  if(KYTE_FACT[p.recibo]) return {k:'facturado', label:'Facturado en Kyte', color:'bg-blue-100 text-blue-700', icon:'fa-file-invoice'};
+  return {k:'pendiente', label:'Pendiente', color:'bg-red-100 text-red-700', icon:'fa-clock'};
+}
+function numFacturaDe(pedido){ const k=KYTE_FACT[pedido]; return (k&&k.numFactura)||''; }
+function faltaFacturar(p){ return !DELIVERED_ONLINE[p.recibo] && !KYTE_FACT[p.recibo]; }
+
+/* Registrar / corregir el numero de factura de Kyte */
+function marcarFacturado(pedido, numFactura){
+  const p=PEDIDOS.find(x=>x.recibo===pedido);
+  let n=String(numFactura||'').trim();
+  if(!n){ toast('Escriba el numero de factura de Kyte'); return false; }
+  const data={
+    pedido:pedido, numFactura:n, fechaISO:new Date().toISOString(), fecha:fechaHora(),
+    cliente:(p&&p.cliente)||(KYTE_FACT[pedido]&&KYTE_FACT[pedido].cliente)||'',
+    tel:(p&&p.tel)||'', total:(p&&+p.total)||0, origen:(p&&p.origen)||''
+  };
+  KYTE_FACT[pedido]=data; saveKyteFact(); kytePushFact(pedido,data);
+  return true;
+}
+function quitarFactura(pedido){
+  if(!confirm('\u00bfQuitar el registro de factura de Kyte del pedido '+pedido+'? El pedido volvera a quedar como Pendiente.')) return;
+  delete KYTE_FACT[pedido]; saveKyteFact();
+  try{ if(window.PGSync&&window.PGSync.ok&&window.PGSync.removeAt) window.PGSync.removeAt('factura_kyte/'+pedido); }catch(e){}
+  refrescar(); toast('Factura quitada del pedido '+pedido);
+}
+
+/* Abrir el modal para escribir el numero de factura */
+function abrirFacturaKyte(pedido){
+  const p=PEDIDOS.find(x=>x.recibo===pedido);
+  const prev=KYTE_FACT[pedido];
+  if(!p && !prev){ toast('Pedido no encontrado'); return; }
+  const cli=(p&&p.cliente)||(prev&&prev.cliente)||'';
+  const total=(p&&+p.total)||(prev&&+prev.total)||0;
+  openModal(`<div class="p-5">
+    <div class="flex items-center justify-between mb-4"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-file-invoice text-pg-gold mr-2"></i>Factura de Kyte \u2014 Pedido ${esc(pedido)}</h3><button onclick="closeModal()" class="text-pg-muted"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="rounded-xl bg-pg-cream/60 p-4 mb-4 text-sm">
+      <div class="flex justify-between"><span class="text-pg-muted">Cliente</span><b>${esc(cli)}</b></div>
+      <div class="flex justify-between mt-1"><span class="text-pg-muted">Total del pedido</span><b class="text-pg-green">${money(total)}</b></div>
+      ${prev?`<div class="flex justify-between mt-1"><span class="text-pg-muted">Factura ya registrada</span><b class="text-blue-700">${esc(prev.numFactura)}</b></div>`:''}
+    </div>
+    <p class="text-[12px] text-pg-muted mb-3">Hac\u00e9 la factura en Kyte y peg\u00e1 ac\u00e1 el n\u00famero que te dio. Despu\u00e9s solo confirm\u00e1s la entrega.</p>
+    <label class="text-xs font-semibold">N\u00famero de factura (Kyte)</label>
+    <input id="kyteNum" value="${esc(prev?prev.numFactura:'')}" placeholder="Ej: 001-000123" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-pg-gold" onkeypress="if(event.key==='Enter')guardarFacturaKyte('${pedido}')">
+    <p class="text-[11px] text-pg-muted mt-1"><i class="fa-solid fa-circle-info"></i> Queda guardado con el Pedido ${esc(pedido)}: si el cliente te escribe, busc\u00e1s el pedido y ves su factura.</p>
+    <div class="flex gap-2 mt-5">
+      <button onclick="closeModal()" class="flex-1 py-2.5 rounded-lg bg-gray-100 text-sm font-semibold">Cancelar</button>
+      ${prev?`<button onclick="quitarFactura('${pedido}')" class="py-2.5 px-3 rounded-lg bg-red-100 text-red-700 text-sm font-semibold" title="Quitar factura"><i class="fa-solid fa-trash"></i></button>`:''}
+      <button onclick="guardarFacturaKyte('${pedido}')" class="flex-1 py-2.5 rounded-lg bg-pg-green hover:bg-pg-green2 text-white text-sm font-semibold"><i class="fa-solid fa-check mr-1"></i> Guardar factura</button>
+    </div>
+  </div>`);
+  setTimeout(function(){ const el=document.getElementById('kyteNum'); if(el) el.focus(); },120);
+}
+function guardarFacturaKyte(pedido){
+  const el=document.getElementById('kyteNum');
+  const n=(el&&el.value||'').trim();
+  if(!n){ toast('Escriba el n\u00famero de factura de Kyte'); if(el)el.focus(); return; }
+  if(marcarFacturado(pedido,n)){
+    closeModal(); refrescar();
+    toast('Pedido '+pedido+' \u2192 Facturado en Kyte ('+n+')');
+  }
+}
+
+/* Buscador: pedido, nombre, telefono o numero de factura */
+function sinTildes(t){ return String(t==null?'':t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function buscarPedidos(q){
+  q=sinTildes(String(q||'').trim());
+  if(!q) return PEDIDOS.slice();
+  const soloNum=q.replace(/[^0-9]/g,'');
+  return PEDIDOS.filter(p=>{
+    const campos=[p.recibo,p.cliente,p.tel,numFacturaDe(p.recibo)].map(x=>sinTildes(x));
+    if(campos.some(c=>c&&c.indexOf(q)>=0)) return true;
+    if(soloNum){
+      const telOK=String(p.tel||'').replace(/[^0-9]/g,'').indexOf(soloNum)>=0;
+      const numOK=String(p.recibo||'').replace(/[^0-9]/g,'').indexOf(soloNum)>=0;
+      if(telOK||numOK) return true;
+    }
+    return false;
+  });
+}
+function pedBuscar(v){ PED_BUSCA=String(v||''); if(typeof RENDER.pedidos==='function') RENDER.pedidos(); }
+
+/* Contadores para las tarjetas de arriba */
+function kyteContadores(){
+  const c={pendiente:0, facturado:0, entregado:0};
+  PEDIDOS.forEach(p=>{ c[estadoPedido(p).k]++; });
+  return c;
+}
+
+/* ============================================================
+   VISTA RAPIDA DE PEDIDOS PENDIENTES
+   Pensada para decidir en segundos: que llego, que falta
+   facturar en Kyte, si hay stock para despachar y que hacer.
+   ============================================================ */
+let PED_BUSCA='', PED_VER='Pendientes';
+
+function stockParaItem(it){
+  /* Cruza el item del pedido con el inventario del panel */
+  const nombre=String(it.n||'').toLowerCase().trim();
+  const p=PRODUCTOS.find(x=>String(x.nombre||'').toLowerCase().trim()===nombre)
+        || PRODUCTOS.find(x=>nombre && String(x.nombre||'').toLowerCase().indexOf(nombre.slice(0,12))>=0);
+  if(!p) return {prod:null, pide:+it.q||0, hay:null};
+  if(!p.control) return {prod:p, pide:+it.q||0, hay:null};   /* no controla stock */
+  const hay=+p.stock||0;
+  return {prod:p, pide:+it.q||0, hay:hay, alcanza: hay>=(+it.q||0)};
+}
+function pedidoStockResumen(p){
+  let falta=false, sinControl=0;
+  (p.items||[]).forEach(it=>{
+    const s=stockParaItem(it);
+    if(s.hay==null){ sinControl++; return; }
+    if(!s.alcanza) falta=true;
+  });
+  if(falta) return {k:'falta', label:'Falta stock', color:'bg-red-100 text-red-700', icon:'fa-triangle-exclamation'};
+  if(sinControl===((p.items||[]).length)) return {k:'na', label:'Sin control', color:'bg-gray-100 text-gray-600', icon:'fa-minus'};
+  return {k:'ok', label:'Stock OK', color:'bg-green-100 text-green-700', icon:'fa-boxes-stacked'};
+}
+
+RENDER.pendientes = function(){
+  const c=kyteContadores();
+  let lista=PEDIDOS.slice();
+  if(PED_VER==='Pendientes') lista=lista.filter(p=>estadoPedido(p).k==='pendiente');
+  else if(PED_VER==='Facturados') lista=lista.filter(p=>estadoPedido(p).k==='facturado');
+  lista=lista.filter(p=>buscarPedidos(PED_BUSCA).indexOf(p)>=0);
+
+  const rows=lista.map(p=>{
+    const est=estadoPedido(p), st=pedidoStockResumen(p), fac=numFacturaDe(p.recibo);
+    return `<tr class="border-b border-gray-100 hover:bg-pg-cream/60 align-top">
+      <td class="px-3 py-2 font-semibold text-pg-green whitespace-nowrap">${esc(p.recibo)}<div class="text-[10px] font-normal text-pg-muted mt-0.5">${esc(p.fecha||'')}</div></td>
+      <td class="px-3 py-2">${esc(p.cliente)}<div class="text-[10px] text-pg-muted">${esc(p.tel||'')}</div></td>
+      <td class="px-3 py-2"><span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${p.origen.includes('Tienda')?'bg-pg-leaf/20 text-pg-green':'bg-pg-gold/20 text-pg-gold2'}">${esc(p.origen)}</span></td>
+      <td class="px-3 py-2 text-[11px] text-pg-muted">${(p.items||[]).map(i=>i.q+'\u00d7 '+esc(i.n)).join('<br>')||'\u2014'}</td>
+      <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${st.color}"><i class="fa-solid ${st.icon} mr-1"></i>${st.label}</span></td>
+      <td class="px-3 py-2 text-right font-semibold">${money(p.total)}</td>
+      <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${est.color}">${fac?('<b>'+esc(fac)+'</b>'):est.label}</span></td>
+      <td class="px-3 py-2 text-center whitespace-nowrap">
+        <button onclick="abrirFacturaKyte('${p.recibo}')" title="${fac?'Corregir factura':'Anotar factura de Kyte'}" class="text-[11px] px-2 py-1 rounded-md ${fac?'bg-blue-100 text-blue-700':'bg-blue-600 text-white hover:bg-blue-700'} mr-1"><i class="fa-solid fa-file-invoice"></i></button>
+        <button onclick="entregarPedido('${p.recibo}')" title="Entregar" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-truck-fast"></i></button>
+        <button onclick="reciboPedido('${p.recibo}')" title="Ver detalle" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button>
+        <button onclick="cancelarPedido('${p.recibo}')" title="Cancelar" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700"><i class="fa-solid fa-xmark"></i></button>
+      </td></tr>`;
+  }).join('');
+
+  const card=(v,label,val,color)=>`<button onclick="pedVer('${v}')" class="text-left bg-white rounded-xl shadow-soft px-4 py-3 border-2 ${PED_VER===v?'border-pg-green':'border-transparent'}"><span class="text-[11px] text-pg-muted">${label}</span><br><b class="text-xl ${color}">${val}</b></button>`;
+
+  document.getElementById('view-pendientes').innerHTML=`
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    ${card('Pendientes','Pendientes',c.pendiente,'text-red-600')}
+    ${card('Facturados','Facturados en Kyte',c.facturado,'text-blue-700')}
+    ${card('Todos','Entregados hoy',(ENTREGAS?Object.values(ENTREGAS).filter(e=>String(e.fechaISO||'').slice(0,10)===todayISO()).length:0),'text-pg-green')}
+  </div>
+  <div class="bg-white rounded-2xl shadow-soft">
+    <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
+      <h3 class="font-bold text-pg-green mr-auto"><i class="fa-solid fa-bolt text-pg-gold mr-2"></i>Control r\u00e1pido de pedidos</h3>
+      <input value="${esc(PED_BUSCA)}" oninput="pedBuscar(this.value)" placeholder="Buscar Pedido No., cliente, tel\u00e9fono o factura\u2026" class="px-3 py-1.5 rounded-lg border border-gray-200 text-[12px] w-64 focus:outline-none focus:border-pg-gold">
+    </div>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr>
+        <th class="px-3 py-2 text-left">Pedido No.</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left">Canal</th><th class="px-3 py-2 text-left">Productos</th><th class="px-3 py-2 text-center">Inventario</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Kyte</th><th class="px-3 py-2 text-center">Acciones</th>
+      </tr></thead>
+      <tbody>${rows||'<tr><td colspan=8 class="text-center py-8 text-pg-muted"><i class="fa-solid fa-mug-hot text-2xl block mb-2"></i>Sin pedidos en esta lista</td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <p class="text-[11px] text-pg-muted mt-3"><i class="fa-solid fa-circle-info mr-1"></i>El inventario se descuenta al <b>Entregar</b> el pedido, no al recibirlo \u2014 as\u00ed no descont\u00e1s mercader\u00eda de pedidos que se caen.</p>`;
+};
+function pedVer(v){ PED_VER=v; RENDER.pendientes(); }
+
 function refrescar(){ if(typeof VISTA==='undefined'||!document.getElementById('view-'+VISTA)) return; if(typeof applyEntregas==='function') applyEntregas(); if(typeof applyCancelaciones==='function') applyCancelaciones(); if(RENDER[VISTA]) RENDER[VISTA](); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -479,8 +683,8 @@ RENDER.inicio = function(){
       <td class="px-3 py-2">${esc(p.cliente)}</td>
       <td class="px-3 py-2 text-pg-muted hidden md:table-cell">${p.items.map(i=>i.q+'× '+esc(i.n)).join(', ')}</td>
       <td class="px-3 py-2 text-right font-semibold">${money(p.total)}</td>
-      <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.estado==='Pendiente'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-800'}">${p.estado}</span></td>
-      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button><button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button></td>
+      <td class="px-3 py-2 text-center">${(()=>{const f=numFacturaDe(p.recibo);return f?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700" title="Facturado en Kyte"><i class="fa-solid fa-file-invoice mr-1"></i>${esc(f)}</span>`:`<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700" title="A\u00fan no facturado en Kyte"><i class="fa-solid fa-clock mr-1"></i>Por facturar</span>`})()}</td>
+      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="abrirFacturaKyte('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md ${numFacturaDe(p.recibo)?'bg-blue-100 text-blue-700':'bg-blue-600 text-white hover:bg-blue-700'} mr-1" title="Facturar en Kyte"><i class="fa-solid fa-file-invoice"></i></button><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button><button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button></td>
     </tr>`).join('');
   document.getElementById('view-inicio').innerHTML=`
   ${bannerAlertaDecima()}
@@ -520,16 +724,16 @@ RENDER.inicio = function(){
     </div>
   </div>
   <div class="bg-white rounded-2xl shadow-soft mt-6">
-    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-pg-gold"></i> Pedidos Pendientes</h3><span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">${pend.length} por entregar</span></div>
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-pg-gold"></i> Pedidos Pendientes</h3><div class="flex items-center gap-2"><span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">${pend.length} por entregar</span><span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-semibold">${pend.filter(x=>!numFacturaDe(x.recibo)).length} por facturar</span><button onclick="go('pendientes')" class="text-xs bg-pg-green hover:bg-pg-green2 text-white px-2.5 py-1 rounded-full font-semibold"><i class="fa-solid fa-bolt mr-1"></i>Vista r\u00e1pida</button></div></div>
     <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acci\u00f3n</th></tr></thead>
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">Pedido No.</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Factura Kyte</th><th class="px-3 py-2 text-center">Acci\u00f3n</th></tr></thead>
       <tbody>${rows||'<tr><td colspan=7 class="text-center py-6 text-pg-muted">Sin pedidos pendientes</td></tr>'}</tbody>
     </table></div>
   </div>
   <div class="bg-white rounded-2xl shadow-soft mt-6">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green flex items-center gap-2"><i class="fa-solid fa-cash-register text-pg-gold"></i> Detalle de ventas del d\u00eda</h3><span class="text-xs bg-pg-green/10 text-pg-green px-2 py-1 rounded-full font-semibold">${vh.length} \u00b7 ${money(totVH)}</span></div>
     <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">M\u00e9todo</th><th class="px-3 py-2 text-right">Monto</th></tr></thead>
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">Pedido No.</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">M\u00e9todo</th><th class="px-3 py-2 text-right">Monto</th></tr></thead>
       <tbody>${rowsV||'<tr><td colspan=5 class="text-center py-6 text-pg-muted">Sin ventas registradas hoy</td></tr>'}</tbody>
       <tfoot><tr class="bg-pg-cream/60 font-bold text-pg-green"><td class="px-3 py-2" colspan=4>Total del d\u00eda</td><td class="px-3 py-2 text-right">${money(totVH)}</td></tr></tfoot>
     </table></div>
@@ -1172,8 +1376,12 @@ function rebuildCloudRecibos(){
   TRANSACCIONES=TRANSACCIONES.filter(t=>!t.cloud);
   list.forEach(m=>{
     if(DELIVERED_ONLINE[m.recibo]||CANCELADOS[m.recibo]) return; /* ya entregado o cancelado: no reaparece en Inicio ni en Pedidos */
-    const pago=m.credito?'Cr\u00e9dito':(m.estado_pago==='pendiente'?'Pendiente':'Pagado');
-    PEDIDOS.unshift({ cloud:true, recibo:m.recibo, origen:m.origen||'Tienda en Línea', cliente:m.cliente||'Cliente en linea', tel:m.tel||'', items:m.items||[], total:+m.total||0, ship:+m.ship||0, descMonto:(m.descMonto!=null?+m.descMonto:null), descTipo:m.descTipo||'', estado:'Pendiente', pago, fecha:m.fecha||'' });
+    /* PRINCIPIO: nada se da por pagado sin confirmacion humana.
+       Si la tienda/banco ya lo marco como pagado, se muestra "Por confirmar" hasta
+       que el dueno lo verifique en su cuenta LAFISE. */
+    const pago = m.credito ? 'Cr\u00e9dito' : (m.estado_pago==='pendiente' ? 'Pendiente' : 'Por confirmar');
+    PEDIDOS.unshift({ cloud:true, recibo:m.recibo, origen:m.origen||'Tienda en Línea', cliente:m.cliente||'Cliente en linea', tel:m.tel||'', items:m.items||[], total:+m.total||0, ship:+m.ship||0, descMonto:(m.descMonto!=null?+m.descMonto:null), descTipo:m.descTipo||'', estado:'Pendiente', pago, fecha:m.fecha||'',
+      facturaKyte:numFacturaDe(m.recibo)||'', facturado:!!KYTE_FACT[m.recibo] });
     /* El ingreso NO se registra al llegar el pedido: se registra al ENTREGARLO (contado o abono). */
   });
 }
@@ -1188,6 +1396,7 @@ function startCloudLive(){
   window.PGSync.watchNode('compras_registro', d=>{ CLOUD.compras=d||{}; rebuildCloudRecibos(); refrescar(); });
   window.PGSync.watchNode('cuentas_por_cobrar', d=>{ mergeCloudCxc(d); refrescar(); });
   window.PGSync.watchNode('pedidos_estado', d=>{ d=d||{}; Object.keys(d).forEach(r=>{ const st=d[r]&&d[r].estado; if(st==='Cancelado'&&!CANCELADOS[r]) CANCELADOS[r]={recibo:r,fecha:''}; }); saveCancelados(); rebuildCloudRecibos(); refrescar(); });
+  window.PGSync.watchNode('factura_kyte', d=>{ if(kyteMergeCloud(d)){ rebuildCloudRecibos(); refrescar(); } });
   window.PGSync.watchNode('anuncios', d=>{ if(d&&typeof d==='object'){ ANUNCIOS=d; saveAnuncios(); if(VISTA==='anuncios'&&RENDER.anuncios) RENDER.anuncios(); } });
   window.PGSync.watchNode('config/empresa', d=>{ mergeCloudEmpresa(d); });
   if(typeof setSyncMsg==='function') setSyncMsg('<span class="text-pg-green"><i class="fa-solid fa-satellite-dish"></i> Sincronizaci\u00f3n en vivo activa</span>');
@@ -1247,21 +1456,28 @@ RENDER.pedidos = function(){
       <td class="px-3 py-2 text-pg-muted hidden md:table-cell">${p.items.map(i=>i.q+'× '+esc(i.n)).join(', ')}</td>
       <td class="px-3 py-2 text-pg-muted text-[11px]">${p.fecha}</td>
       <td class="px-3 py-2 text-right font-semibold">${money(p.total)}</td>
-      <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.pago==='Pagado'?'bg-green-100 text-green-700':p.pago==='Crédito'?'bg-amber-100 text-amber-800':'bg-red-100 text-red-700'}">${p.pago}</span></td>
+      <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.pago==='Pagado'?'bg-green-100 text-green-700':p.pago==='Crédito'?'bg-amber-100 text-amber-800':p.pago==='Por confirmar'?'bg-blue-100 text-blue-700':'bg-red-100 text-red-700'}" title="${p.pago==='Por confirmar'?'Verific\u00e1 el pago en LAFISE antes de darlo por cobrado':''}">${p.pago}</span></td>
       <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.estado==='Entregado'?'bg-green-100 text-green-700':p.estado==='Pendiente'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-800'}">${p.estado}</span></td>
-      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button>${p.estado!=='Entregado'?`<button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button>`:'<i class="fa-solid fa-circle-check text-pg-leaf"></i>'}</td>
+      <td class="px-3 py-2 text-center">${(()=>{const f=numFacturaDe(p.recibo);return f?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">${esc(f)}</span>`:`<span class="text-[11px] text-pg-muted">\u2014</span>`})()}</td>
+      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="abrirFacturaKyte('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md ${numFacturaDe(p.recibo)?'bg-blue-100 text-blue-700':'bg-blue-600 text-white hover:bg-blue-700'} mr-1" title="Facturar en Kyte"><i class="fa-solid fa-file-invoice"></i></button><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button>${p.estado!=='Entregado'?`<button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button>`:'<i class="fa-solid fa-circle-check text-pg-leaf"></i>'}</td>
     </tr>`).join('');
   const chip=(v)=>`<button onclick="pedFiltro('${v}')" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${PED_FILTRO===v?'bg-pg-green text-white border-pg-green':'bg-white text-pg-green border-gray-200'}">${v}</button>`;
   document.getElementById('view-pedidos').innerHTML=`
   <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
     <div class="flex gap-2">${chip('Todos')}${chip('Tienda en Línea')}${chip('Tarjeta Fidelidad')}</div>
-    <div class="flex gap-3"><div class="bg-white rounded-xl shadow-soft px-4 py-2"><span class="text-[11px] text-pg-muted">Pendientes</span><br><b class="text-red-600 text-lg">${pedidosPendientes().length}</b></div></div>
+    <div class="flex gap-2">
+      <div class="bg-white rounded-xl shadow-soft px-4 py-2"><span class="text-[11px] text-pg-muted">Pendientes</span><br><b class="text-red-600 text-lg">${pedidosPendientes().length}</b></div>
+      <div class="bg-white rounded-xl shadow-soft px-4 py-2"><span class="text-[11px] text-pg-muted">Por facturar</span><br><b class="text-blue-700 text-lg">${PEDIDOS.filter(x=>estadoPedido(x).k==='pendiente').length}</b></div>
+      <div class="bg-white rounded-xl shadow-soft px-4 py-2"><span class="text-[11px] text-pg-muted">Facturados</span><br><b class="text-pg-green text-lg">${PEDIDOS.filter(x=>estadoPedido(x).k==='facturado').length}</b></div>
+    </div>
   </div>
   <div class="bg-white rounded-2xl shadow-soft">
-    <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-clipboard-list text-pg-gold mr-2"></i>Gestión de Pedidos</h3></div>
+    <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2"><h3 class="font-bold text-pg-green mr-auto"><i class="fa-solid fa-clipboard-list text-pg-gold mr-2"></i>Gestión de Pedidos</h3>
+      <div class="relative"><i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-pg-muted text-[11px]"></i><input value="${esc(PED_BUSCA)}" oninput="pedBuscar(this.value)" placeholder="Pedido No., cliente, tel. o factura" class="pl-7 pr-3 py-1.5 rounded-lg border border-gray-200 text-[12px] w-60 focus:outline-none focus:border-pg-gold"></div>
+    </div>
     <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Pago</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acción</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan=9 class="text-center py-6 text-pg-muted">Sin pedidos</td></tr>'}</tbody>
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">Pedido No.</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Pago</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Factura Kyte</th><th class="px-3 py-2 text-center">Acción</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan=10 class="text-center py-6 text-pg-muted">Sin pedidos</td></tr>'}</tbody>
     </table></div>
   </div>
   <div class="mt-4 flex justify-end"><button onclick="simularPedidoOnline()" class="py-2 px-4 rounded-lg bg-pg-leaf hover:opacity-90 text-white text-sm font-semibold"><i class="fa-solid fa-globe mr-1"></i> Simular pedido de Tienda en Línea</button></div>`;
@@ -2358,7 +2574,7 @@ RENDER.ingresos = function(){
     <div class="bg-white rounded-2xl shadow-soft p-5"><h3 class="font-bold text-pg-green mb-4"><i class="fa-solid fa-chart-pie text-pg-gold mr-2"></i>Distribución de ingresos</h3><canvas id="pieIng" height="180"></canvas></div>
     <div class="bg-white rounded-2xl shadow-soft lg:col-span-2"><div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-list text-pg-gold mr-2"></i>Detalle de ingresos</h3></div>
       <div class="overflow-x-auto"><table class="w-full text-sm">
-        <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-right">Venta</th><th class="px-3 py-2 text-right">Envío</th><th class="px-3 py-2 text-right">Otros</th><th class="px-3 py-2 text-center">Método</th></tr></thead>
+        <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">Pedido No.</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-right">Venta</th><th class="px-3 py-2 text-right">Envío</th><th class="px-3 py-2 text-right">Otros</th><th class="px-3 py-2 text-center">Método</th></tr></thead>
         <tbody>${rows||'<tr><td colspan=7 class="text-center py-6 text-pg-muted">Sin ingresos registrados</td></tr>'}</tbody>
       </table></div>
     </div>
