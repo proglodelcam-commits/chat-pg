@@ -1,273 +1,747 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>PG del Campo — Panel de Chat</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>PG del Campo — Panel de Chat y CRM</title>
 <style>
-  :root{ --verde:#1A4D29; --verde2:#2E683C; --dorado:#E3B505; --bg:#f4f2ec; }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#222}
-  header{background:var(--verde);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  header h1{font-size:16px;margin:0;font-weight:700}
-  header .dot{color:var(--dorado)}
-  header input{padding:7px 9px;border:0;border-radius:6px;font-size:13px}
-  header input#inKey{width:130px}
-  header input#inUrl{width:270px}
-  header button{background:var(--dorado);color:#3a2e00;border:0;padding:7px 12px;border-radius:6px;font-weight:700;cursor:pointer}
-  .barra{background:#fff8e1;border-bottom:1px solid #f0e0a0;padding:7px 18px;font-size:12px;color:#6b5900;display:none}
-  .barra b{color:#8a6b00}
-  .wrap{display:flex;height:calc(100vh - 52px)}
-  .lista{width:300px;border-right:1px solid #ddd;overflow-y:auto;background:#fff}
-  .sItem{padding:11px 14px;border-bottom:1px solid #eee;cursor:pointer}
-  .sItem:hover{background:#f7f5ef}
-  .sItem.sel{background:#eef5ee;border-left:4px solid var(--verde)}
-  .sItem .top{display:flex;justify-content:space-between;align-items:center;gap:6px}
-  .sItem .nom{font-weight:700;font-size:14px;color:var(--verde)}
-  .sItem .sub{font-size:12px;color:#777;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .badge{background:#d33;color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;font-weight:700}
-  .warn{background:#fde2e1;color:#8a1c17;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700}
-  .tag{font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700}
-  .tag.bot{background:#e7eef7;color:#2a5a8c}
-  .tag.humano{background:#fdebc7;color:#8a6b00}
-  .chat{flex:1;display:flex;flex-direction:column}
-  .chatHead{padding:10px 16px;background:#fff;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-  .chatHead .modoBtn{border:0;border-radius:6px;padding:7px 12px;font-weight:700;cursor:pointer}
-  .modoBtn.tomar{background:var(--verde);color:#fff}
-  .modoBtn.soltar{background:#ccc;color:#333}
-  .msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
-  .m{max-width:72%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
-  .m.cliente{align-self:flex-start;background:#fff;border:1px solid #e3e0d7}
-  .m.bot{align-self:flex-end;background:#e7eef7}
-  .m.humano{align-self:flex-end;background:var(--verde);color:#fff}
-  .m.nota{align-self:center;background:transparent;border:1px dashed #c9c3b3;color:#7a7263;font-size:12px;padding:6px 10px;max-width:80%;text-align:center}
-  .m .meta{display:block;font-size:10px;opacity:.6;margin-top:3px}
-  .input{display:flex;gap:8px;padding:12px;background:#fff;border-top:1px solid #ddd}
-  .input input{flex:1;padding:11px;border:1px solid #ccc;border-radius:8px;font-size:14px}
-  .input button{background:var(--verde);color:#fff;border:0;padding:0 18px;border-radius:8px;font-weight:700;cursor:pointer}
-  .vacio{margin:auto;color:#999;text-align:center;padding:30px;line-height:1.5}
+  :root{
+    --bg:#f4f5f7; --surface:#fff; --primary:#2e5a27; --primary-light:#e8f3e6;
+    --accent:#d97706; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb;
+    --bot-bubble:#f3f4f6; --human-bubble:#dcfce7; --client-bubble:#fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;}
+  body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+  header{background:var(--primary);color:#fff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;box-shadow:0 2px 4px rgba(0,0,0,.12);}
+  .brand{font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+  .brand small{font-weight:400;opacity:.75;font-size:.72rem;}
+  .conn-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .conn-bar input{padding:6px 9px;border-radius:6px;border:none;font-size:.82rem;width:230px;}
+  .conn-bar input.key-input{width:120px;}
+  button{cursor:pointer;border:none;border-radius:6px;padding:7px 11px;font-weight:600;font-size:.82rem;}
+  button:disabled{opacity:.55;cursor:default;}
+  .btn-connect{background:#fff;color:var(--primary);}
+  .btn-view{background:rgba(255,255,255,.18);color:#fff;}
+  .btn-view.active{background:var(--accent);color:#fff;}
+  #barra{display:none;background:#fff7ed;color:#7c2d12;border-bottom:1px solid #fed7aa;padding:7px 14px;font-size:.8rem;line-height:1.45;}
+  .workspace{display:flex;flex:1;overflow:hidden;}
+
+  /* Kanban */
+  #kanbanView{display:none;flex:1;padding:14px;gap:12px;overflow-x:auto;align-items:flex-start;}
+  .kanban-col{background:#ebecf0;border-radius:10px;width:280px;min-width:265px;max-height:100%;display:flex;flex-direction:column;padding:9px;}
+  .kanban-col.over{outline:2px dashed var(--primary);background:#e4efe1;}
+  .kanban-col h3{font-size:.82rem;padding:2px 4px 9px;display:flex;justify-content:space-between;gap:6px;color:#374151;align-items:center;}
+  .kanban-col h3 span.n{background:#d1d5db;color:#374151;border-radius:99px;padding:1px 8px;font-size:.72rem;}
+  .kanban-cards{overflow-y:auto;display:flex;flex-direction:column;gap:8px;flex:1;min-height:40px;}
+  .k-card{background:var(--surface);padding:9px 10px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.08);cursor:pointer;border-left:4px solid var(--primary);}
+  .k-card.humano{border-left-color:#dc2626;}
+  .k-card.cerrado{border-left-color:#6b7280;}
+  .k-card-top{display:flex;justify-content:space-between;gap:6px;font-weight:600;font-size:.85rem;margin-bottom:3px;}
+  .k-card-meta{font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between;gap:6px;}
+  .k-card-nota{font-size:.72rem;color:#4b5563;margin-top:5px;border-top:1px dashed #e5e7eb;padding-top:4px;}
+  .k-empty{font-size:.75rem;color:#9ca3af;text-align:center;padding:10px 4px;}
+
+  /* Chat */
+  #chatView{display:flex;flex:1;overflow:hidden;}
+  .sidebar{width:302px;min-width:250px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar-filter{padding:9px;border-bottom:1px solid var(--border);}
+  .sidebar-filter input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:.84rem;}
+  .chips{display:flex;gap:5px;overflow-x:auto;padding:7px 9px;border-bottom:1px solid var(--border);}
+  .chip{background:#f3f4f6;color:#374151;border-radius:99px;padding:3px 9px;font-size:.7rem;white-space:nowrap;font-weight:600;}
+  .chip.on{background:var(--primary);color:#fff;}
+  .session-list{flex:1;overflow-y:auto;}
+  .s-item{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;gap:4px;}
+  .s-item:hover{background:#f9fafb;}
+  .s-item.sel{background:var(--primary-light);border-left:3px solid var(--primary);}
+  .s-row{display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .s-name{font-weight:600;font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .badge{font-size:.68rem;padding:1px 6px;border-radius:99px;font-weight:700;}
+  .badge-unread{background:var(--accent);color:#fff;}
+  .tag{font-size:.66rem;padding:1px 6px;border-radius:99px;font-weight:700;text-transform:uppercase;}
+  .tag.bot{background:#e5e7eb;color:#374151;}
+  .tag.humano{background:#fee2e2;color:#b91c1c;}
+  .tag.warn{background:#fef3c7;color:#92400e;text-transform:none;}
+  .tag.etapa{background:#eef2ff;color:#3730a3;text-transform:none;}
+  .s-sub{font-size:.74rem;color:var(--muted);display:flex;justify-content:space-between;gap:6px;}
+  .s-nota{font-size:.72rem;color:#4b5563;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .chat-main{flex:1;display:flex;flex-direction:column;background:#efeae2;min-width:0;}
+  .chat-header{background:var(--surface);padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .chat-header .who{min-width:0;}
+  .chat-header .who b{font-size:.92rem;}
+  .chat-header .sub{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .chat-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+  .messages{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;}
+  .m{max-width:74%;padding:8px 12px;border-radius:10px;font-size:.88rem;line-height:1.4;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.06);word-wrap:break-word;}
+  .m.cliente{align-self:flex-start;background:var(--client-bubble);border-top-left-radius:0;}
+  .m.bot{align-self:flex-end;background:var(--bot-bubble);color:#374151;border-top-right-radius:0;}
+  .m.humano{align-self:flex-end;background:var(--human-bubble);border-top-right-radius:0;}
+  .m.nota{align-self:center;background:#fff7ed;border:1px dashed #fdba74;color:#7c2d12;font-size:.78rem;max-width:88%;}
+  .m .meta{display:block;font-size:.66rem;color:var(--muted);margin-top:3px;text-align:right;}
+  .quick-bar{background:#f9fafb;padding:6px 10px;border-top:1px solid var(--border);display:flex;gap:5px;overflow-x:auto;}
+  .quick-chip{background:#fff;border:1px solid var(--border);color:var(--text);padding:4px 9px;border-radius:99px;font-size:.72rem;white-space:nowrap;}
+  .input-area{background:var(--surface);padding:9px 12px;display:flex;gap:7px;align-items:center;}
+  .input-area input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;min-width:0;}
+  .btn-send{background:var(--primary);color:#fff;padding:9px 16px;}
+  .btn-humano{background:#dc2626;color:#fff;}
+  .btn-bot{background:#2563eb;color:#fff;}
+
+  /* Ficha CRM */
+  .crm-panel{width:288px;min-width:250px;background:var(--surface);border-left:1px solid var(--border);padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+  .crm-section{border-bottom:1px solid var(--border);padding-bottom:11px;}
+  .crm-section:last-child{border-bottom:none;}
+  .crm-section h4{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:7px;}
+  .crm-section select,.crm-section textarea,.crm-section input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;}
+  .crm-section textarea{resize:vertical;min-height:62px;}
+  .crm-btns{display:flex;gap:6px;margin-top:7px;align-items:center;}
+  .btn-save{background:var(--primary);color:#fff;flex:1;}
+  .ok-ficha{font-size:.74rem;color:var(--primary);min-height:1em;}
+  .cart-row{font-size:.8rem;padding:4px 0;display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed #f1f5f9;}
+  .cart-total{font-size:.82rem;font-weight:700;padding-top:7px;display:flex;justify-content:space-between;}
+  .kv{font-size:.8rem;line-height:1.55;}
+  .kv span{color:var(--muted);}
+  .empty-state{margin:auto;color:var(--muted);text-align:center;padding:22px 14px;font-size:.85rem;line-height:1.5;}
+  #btnFicha{display:none;}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 15px;border-radius:8px;font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90vw;text-align:center;}
+  #toast.on{opacity:.95;}
+
+  @media (max-width:960px){
+    .sidebar{width:240px;min-width:210px;}
+    .crm-panel{position:fixed;top:0;right:0;bottom:0;width:86%;max-width:330px;z-index:40;box-shadow:-6px 0 18px rgba(0,0,0,.18);transform:translateX(102%);transition:transform .2s;}
+    .crm-panel.open{transform:none;}
+    #btnFicha{display:inline-block;}
+    .conn-bar input{width:170px;}
+  }
 </style>
 </head>
 <body>
+
 <header>
-  <h1>☕ PG del Campo <span class="dot">— Chat en Vivo</span></h1>
-  <input id="inUrl" placeholder="URL del bot (https://...onrender.com)">
-  <input id="inKey" type="password" placeholder="Clave admin">
-  <button id="btnConn">Conectar</button>
-  <span id="estado" style="font-size:12px;opacity:.85"></span>
+  <div class="brand">☕ PG del Campo — Chat y CRM <small>panel v2</small></div>
+  <div class="conn-bar">
+    <input id="inUrl" type="text" placeholder="URL del bot (https://...onrender.com)" autocomplete="off" />
+    <input id="inKey" class="key-input" type="password" placeholder="ADMIN_KEY" autocomplete="off" />
+    <button id="btnConn" class="btn-connect">Conectar</button>
+    <button id="btnTabChat" class="btn-view active">💬 Chat</button>
+    <button id="btnTabKanban" class="btn-view">📊 Embudo</button>
+  </div>
 </header>
-<div class="barra" id="barra"></div>
-<div class="wrap">
-  <div class="lista" id="lista"><div class="vacio">Conectá arriba para ver las conversaciones.</div></div>
-  <div class="chat">
-    <div class="chatHead" id="chatHead" style="display:none">
-      <div><b id="chatNom">—</b> <span id="chatModo" class="tag bot">bot</span> <span id="chatAlerta" class="warn" style="display:none"></span></div>
-      <button id="btnModo" class="modoBtn tomar">Tomar conversación</button>
-    </div>
-    <div class="msgs" id="msgs"><div class="vacio">Elegí una conversación de la izquierda.</div></div>
-    <div class="input" id="inputRow" style="display:none">
-      <input id="txt" placeholder="Escribí tu respuesta…" autocomplete="off">
-      <button id="btnEnviar">Enviar</button>
-    </div>
+<div id="barra"></div>
+
+<div class="workspace">
+  <div id="kanbanView"></div>
+
+  <div id="chatView">
+    <aside class="sidebar">
+      <div class="sidebar-filter">
+        <input id="searchBox" type="text" placeholder="Buscar cliente o teléfono…" autocomplete="off" />
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="session-list" id="sessionList">
+        <div class="empty-state">Conectá arriba para ver las conversaciones.</div>
+      </div>
+    </aside>
+
+    <main class="chat-main">
+      <div class="chat-header">
+        <div class="who">
+          <b id="chatTitle">—</b> <span id="chatModo" class="tag bot">bot</span> <span id="chatAlerta" class="tag warn" style="display:none"></span>
+          <div class="sub" id="chatSub">Elegí una conversación</div>
+        </div>
+        <div class="chat-actions">
+          <button id="btnFicha" class="btn-view" style="background:#eef2ff;color:#3730a3">Ficha</button>
+          <button id="btnModo" class="btn-humano" style="display:none">Tomar conversación</button>
+        </div>
+      </div>
+
+      <div class="messages" id="msgs">
+        <div class="empty-state">Seleccioná un chat de la izquierda o del Embudo.</div>
+      </div>
+
+      <div class="quick-bar" id="atajos" style="display:none"></div>
+
+      <div class="input-area" id="inputRow" style="display:none">
+        <input id="txt" type="text" placeholder="Escribí tu respuesta… (probá /pago)" autocomplete="off" />
+        <button id="btnEnviar" class="btn-send">Enviar</button>
+      </div>
+    </main>
+
+    <aside class="crm-panel" id="crmPanel">
+      <div class="crm-section">
+        <h4>Cliente</h4>
+        <div class="kv" id="fichaCliente"><span>Elegí una conversación.</span></div>
+      </div>
+      <div class="crm-section">
+        <h4>Etapa del embudo</h4>
+        <select id="selEtapa">
+          <option value="">Sin marcar</option>
+          <option value="nuevo">Nuevo</option>
+          <option value="consultando">Consultando</option>
+          <option value="carrito">En carrito</option>
+          <option value="cotizado">Cotizado</option>
+          <option value="humano">Requiere humano</option>
+          <option value="pagado">Pagado</option>
+          <option value="perdido">Perdido</option>
+        </select>
+        <h4 style="margin-top:10px">Notas internas</h4>
+        <textarea id="txtNotas" rows="3" placeholder="Ej: pidió 2 de café 400 g, paga mañana por LAFISE"></textarea>
+        <div class="crm-btns">
+          <button id="btnFichaGuardar" class="btn-save">Guardar ficha</button>
+          <span class="ok-ficha" id="okFicha"></span>
+        </div>
+      </div>
+      <div class="crm-section">
+        <h4>Carrito del cliente</h4>
+        <div id="fichaCarrito"><span style="font-size:.8rem;color:var(--muted)">—</span></div>
+      </div>
+      <div class="crm-section">
+        <h4>Actividad</h4>
+        <div class="kv" id="fichaActividad"><span>—</span></div>
+      </div>
+    </aside>
   </div>
 </div>
-<script id="panelScript">
+
+<div id="toast"></div>
+
+<script>
 (function(){
-  var $=function(id){return document.getElementById(id);};
-  var DEF='https://pg-del-campo-bot.onrender.com';
-  // Si abres el panel desde el propio bot (/panel), usa esa misma direccion.
-  // Asi sirve igual en pg-del-campo-bot o en cualquier otra direccion.
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var DEF = 'https://pg-del-campo-bot.onrender.com';
   try{
-    if(location.protocol==='http:'||location.protocol==='https:'){
-      if(/onrender\.com$/i.test(location.hostname)) DEF=location.origin;
+    if(location.protocol === 'https:' || location.protocol === 'http:'){
+      if(/onrender\.com$/i.test(location.hostname)) DEF = location.origin;
     }
   }catch(e){}
-  var AGENT=DEF, KEY='', SEL=null, modoSel='bot', lastTs=0, tSes=null, tMsg=null;
-  var SESMETA={}, BUILD='';
 
-  var totalNoLeidos=0;
-  function api(path){ return AGENT.replace(/\/$/,'') + path + (path.indexOf('?')>-1?'&':'?') + 'key=' + encodeURIComponent(KEY); }
-  function hhmm(ts){ try{ var d=new Date(ts); return d.toLocaleTimeString('es-NI',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
-  function setEstado(t){ $('estado').textContent=t||''; }
+  var AGENT = DEF, KEY = '', SEL = null, SELNOM = '', modoSel = 'bot', lastTs = 0;
+  var tSes = null, tMsg = null, tFicha = null, toastT = null;
+  var SES = {}, LISTA = [], FILTRO = 'todas', VISTA = 'chat', BUILD = '';
 
-  // Acepta "pg-del-campo-bot.onrender.com" y lo deja en https://...
+  var GRUPOS = [
+    { id:'consultando', nom:'Consultando', etapa:'consultando' },
+    { id:'carrito',     nom:'En carrito / Cotizado', etapa:'carrito' },
+    { id:'humano',      nom:'Requiere humano', etapa:'humano' },
+    { id:'cerrado',     nom:'Cerrado / Pagado', etapa:'pagado' }
+  ];
+  var ESTADOS_CARRITO = ['carrito','elegir','cotizado','seguimiento_enviado'];
+
+  var ATAJOS = {
+    '/pago':'Podés pagar por transferencia o QR LAFISE — Cuenta: 140051265 (Fernando Martínez) · ACH/Móvil: 5797 3097. También aceptamos contra entrega en Jinotepe, Dolores, Diriamba y San Marcos.',
+    '/envio':'El envío cuesta C$ 20 en Jinotepe, Dolores, Diriamba y San Marcos. A otras zonas las coordinamos y te decimos el costo antes de confirmar.',
+    '/tienda':'Podés confirmar tu pedido acá, ya te queda el carrito cargado: https://proglodelcam-commits.github.io/pg-nic/#pedido',
+    '/estrellas':'Con la Tarjeta de Fidelidad cada compra confirmada te suma una ⭐. Al completar 10 compras te damos 2 % adicional. También hay descuento por monto: 1 % de C$600, 2 % de C$1,200 y 3 % de C$1,800.',
+    '/horario':'Atendemos lunes a viernes de 8:30 a.m. a 4:30 p.m. y sábado hasta las 12:00 m.d. Domingo cerrado.'
+  };
+  ATAJOS['/fidelidad'] = ATAJOS['/estrellas'];
+
+  /* ---------- utilidades ---------- */
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(text !== undefined && text !== null) e.textContent = String(text);
+    return e;
+  }
+  function api(path){
+    return AGENT.replace(/\/+$/,'') + path + (path.indexOf('?') > -1 ? '&' : '?') + 'key=' + encodeURIComponent(KEY);
+  }
   function normalizar(u){
-    u=String(u||'').trim();
+    u = String(u || '').trim();
     if(!u) return '';
-    if(!/^https?:\/\//i.test(u)) u='https://'+u;
+    if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
     return u.replace(/\/+$/,'');
   }
-
-  function mostrarBarra(txt){
-    var b=$('barra');
-    if(!txt){ b.style.display='none'; b.innerHTML=''; return; }
-    b.style.display='block'; b.innerHTML=txt;
+  function hhmm(ts){
+    try{ return new Date(ts).toLocaleTimeString('es-NI',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; }
+  }
+  function fechaHora(ts){
+    try{ return new Date(ts).toLocaleString('es-NI',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; }
+  }
+  function money(n){ try{ return 'C$ ' + Number(n||0).toLocaleString('es-NI'); }catch(e){ return 'C$ ' + (n||0); } }
+  function toast(t){
+    var b = $('toast'); if(!b) return;
+    b.textContent = t; b.classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(function(){ b.classList.remove('on'); }, 2600);
+  }
+  function setEstado(){} /* el estado se ve en la barra */
+  function barra(txt){
+    var b = $('barra'); if(!b) return;
+    if(!txt){ b.style.display = 'none'; b.textContent = ''; return; }
+    b.style.display = 'block'; b.textContent = txt;
+  }
+  function nombreDe(s){
+    return s.nombre || (s.tel ? ('WhatsApp ' + s.tel) : String(s.sesion || '').replace(/^web_/,''));
   }
 
+  /* Etapa: manda lo que puso el dueño; si no hay nada, se deduce del bot. */
+  function etapaDe(s){
+    if(!s) return 'consultando';
+    var e = String(s.etapa || '').toLowerCase();
+    if(e === 'pagado' || e === 'perdido') return 'cerrado';
+    if(e === 'humano' || s.modo === 'humano') return 'humano';
+    if(e === 'carrito' || e === 'cotizado') return 'carrito';
+    if(e === 'nuevo' || e === 'consultando') return 'consultando';
+    if(ESTADOS_CARRITO.indexOf(String(s.estado || '')) >= 0) return 'carrito';
+    return 'consultando';
+  }
+  function nombreGrupo(id){
+    for(var i=0;i<GRUPOS.length;i++){ if(GRUPOS[i].id === id) return GRUPOS[i].nom; }
+    return id;
+  }
+
+  /* ---------- salud del bot ---------- */
   async function cargarSalud(){
     try{
-      var r=await fetch(api('/salud')); if(!r.ok) return;
-      var d=await r.json();
-      BUILD=d.build||'';
-      var avisos=[];
-      if(d.whatsappToken===false || d.whatsappPhoneId===false){
-        avisos.push('⚠ El aviso por WhatsApp al dueño NO está activo (falta WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID). El bot no va a decir que avisó, pero a vos no te va a llegar el pitazo.');
+      var r = await fetch(api('/salud'));
+      if(!r.ok) return;
+      var d = await r.json();
+      BUILD = d.build || '';
+      var avisos = [];
+      if(d.whatsappToken === false || d.whatsappPhoneId === false){
+        avisos.push('⚠ El aviso por WhatsApp al dueño NO está activo (falta WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID).');
       }
-      if(d.adminKeyConfigurada===false){
-        avisos.push('⚠ La clave es la de fábrica (pg-admin). Cualquiera que la sepa puede leer los chats. Poné ADMIN_KEY en Render con una clave tuya.');
+      if(d.adminKeyConfigurada === false){
+        avisos.push('⚠ La clave es la de fábrica (pg-admin). Poné ADMIN_KEY en Render con una clave tuya.');
       }
-      if(BUILD) avisos.push('Versión del bot en línea: <b>'+BUILD+'</b>');
-      mostrarBarra(avisos.length? avisos.join('<br>') : '');
+      if(BUILD) avisos.push('Versión del bot en línea: ' + BUILD);
+      barra(avisos.join(' · '));
     }catch(e){}
   }
 
+  /* ---------- sesiones ---------- */
   async function cargarSesiones(){
+    if(!KEY) return;
     try{
-      var r=await fetch(api('/chat-sessions'));
-      if(r.status===401){ setEstado('⚠ clave incorrecta'); mostrarBarra('La clave no coincide con la del bot. Si en Render nunca pusiste <b>ADMIN_KEY</b>, la clave de fábrica es <b>pg-admin</b>.'); return; }
-      var d=await r.json();
-      if(!d.ok){ setEstado('⚠ '+(d.error||'no autorizado')); return; }
-      setEstado('Conectado ✔ · ' + new Date().toLocaleTimeString('es-NI',{hour:'2-digit',minute:'2-digit'}));
-      var lista=$('lista'); lista.innerHTML=''; totalNoLeidos=0; SESMETA={};
-      if(!d.sesiones||!d.sesiones.length){ lista.innerHTML='<div class="vacio">Aún no hay conversaciones.</div>'; return; }
-      d.sesiones.forEach(function(s){
-        SESMETA[s.sesion]=s;
-        var div=document.createElement('div');
-        div.className='sItem'+(SEL===s.sesion?' sel':'');
-        var nombre=s.nombre||(s.tel?('WhatsApp '+s.tel):s.sesion.replace(/^web_/,''));
-        var noleidos=parseInt(s.no_leidos||0,10)||0;
-        totalNoLeidos+=noleidos;
-        var top=document.createElement('div'); top.className='top';
-        var nom=document.createElement('span'); nom.className='nom'; nom.textContent=nombre; top.appendChild(nom);
-        var right=document.createElement('span');
-        if(noleidos>0){ var b=document.createElement('span'); b.className='badge'; b.textContent=noleidos; right.appendChild(b); }
-        if(s.alerta==='fallido'){ var w=document.createElement('span'); w.className='warn'; w.textContent='aviso falló'; right.appendChild(w); }
-        var tg=document.createElement('span'); tg.className='tag '+((s.modo==='humano')?'humano':'bot'); tg.textContent=(s.modo==='humano'?'humano':'bot'); right.appendChild(tg);
-        top.appendChild(right); div.appendChild(top);
-        var sub=document.createElement('div'); sub.className='sub'; sub.textContent=(s.tel?('📱 '+s.tel+' · '):'')+(s.ultima?hhmm(s.ultima):''); div.appendChild(sub);
-        div.addEventListener('click', function(){ seleccionar(s.sesion, nombre); });
-        lista.appendChild(div);
+      var r = await fetch(api('/chat-sessions'));
+      if(r.status === 401){
+        barra('La clave no coincide con la del bot. Si en Render nunca pusiste ADMIN_KEY, la clave de fábrica es pg-admin.');
+        return;
+      }
+      var d = await r.json();
+      if(!d.ok){ barra('⚠ ' + (d.error || 'no autorizado')); return; }
+      var arr = d.sesiones || [];
+      SES = {}; var noLeidos = 0;
+      arr.forEach(function(s){ SES[s.sesion] = s; noLeidos += parseInt(s.no_leidos || 0, 10) || 0; });
+      LISTA = arr;
+      renderChips();
+      renderLista();
+      if(VISTA === 'kanban') renderKanban();
+      document.title = (noLeidos > 0 ? '(' + noLeidos + ') ' : '') + 'PG del Campo — Panel de Chat';
+      if(SEL) pintarAlerta(SES[SEL]);
+    }catch(e){
+      barra('No pude conectarme a ' + AGENT + '. Revisá la URL (la del bot, terminada en onrender.com) y que el servicio esté despierto.');
+    }
+  }
+
+  function contar(){
+    var c = { consultando:0, carrito:0, humano:0, cerrado:0 };
+    LISTA.forEach(function(s){ var g = etapaDe(s); if(c[g] !== undefined) c[g]++; });
+    return c;
+  }
+
+  function renderChips(){
+    var box = $('chips'); if(!box) return;
+    box.textContent = '';
+    var c = contar();
+    var ops = [{ id:'todas', nom:'Todas', n:LISTA.length }].concat(GRUPOS.map(function(g){
+      return { id:g.id, nom:g.nom.split(' / ')[0], n:c[g.id] || 0 };
+    }));
+    ops.forEach(function(o){
+      var b = el('button', 'chip' + (FILTRO === o.id ? ' on' : ''), o.nom + ' (' + o.n + ')');
+      b.addEventListener('click', function(){ FILTRO = o.id; try{ localStorage.setItem('pg_filtro', FILTRO); }catch(e){} renderChips(); renderLista(); });
+      box.appendChild(b);
+    });
+  }
+
+  function tarjeta(s){
+    var nombre = nombreDe(s);
+    var div = el('div', 's-item' + (SEL === s.sesion ? ' sel' : ''));
+    var top = el('div', 's-row');
+    top.appendChild(el('span', 's-name', nombre));
+    var right = el('span', 's-row');
+    var nl = parseInt(s.no_leidos || 0, 10) || 0;
+    if(nl > 0) right.appendChild(el('span', 'badge badge-unread', nl));
+    if(s.alerta === 'fallido') right.appendChild(el('span', 'tag warn', 'aviso falló'));
+    right.appendChild(el('span', 'tag ' + (s.modo === 'humano' ? 'humano' : 'bot'), s.modo === 'humano' ? 'humano' : 'bot'));
+    top.appendChild(right);
+    div.appendChild(top);
+
+    var sub = el('div', 's-sub');
+    sub.appendChild(el('span', null, (s.tel ? '📱 ' + s.tel : String(s.sesion || '').replace(/^web_/, ''))));
+    sub.appendChild(el('span', null, s.ultima ? hhmm(s.ultima) : ''));
+    div.appendChild(sub);
+
+    var pie = el('div', 's-sub');
+    pie.appendChild(el('span', 'tag etapa', nombreGrupo(etapaDe(s))));
+    div.appendChild(pie);
+
+    if(s.notas) div.appendChild(el('div', 's-nota', '📝 ' + String(s.notas).slice(0, 60)));
+    div.addEventListener('click', function(){ seleccionar(s.sesion, nombre); });
+    return div;
+  }
+
+  function renderLista(){
+    var box = $('sessionList'); if(!box) return;
+    box.textContent = '';
+    var q = String(($('searchBox') || {}).value || '').trim().toLowerCase();
+    var arr = LISTA.filter(function(s){
+      if(FILTRO !== 'todas' && etapaDe(s) !== FILTRO) return false;
+      if(!q) return true;
+      return (nombreDe(s) + ' ' + (s.tel || '') + ' ' + (s.sesion || '')).toLowerCase().indexOf(q) > -1;
+    });
+    if(!arr.length){
+      box.appendChild(el('div', 'empty-state', LISTA.length ? 'No hay conversaciones en esta columna.' : 'Aún no hay conversaciones.'));
+      return;
+    }
+    var cols = (FILTRO === 'todas') ? GRUPOS.map(function(g){ return g.id; }) : [FILTRO];
+    cols.forEach(function(g){
+      var items = arr.filter(function(s){ return etapaDe(s) === g; });
+      if(!items.length) return;
+      var h = el('div', 's-sub', nombreGrupo(g) + ' (' + items.length + ')');
+      h.style.padding = '6px 12px';
+      h.style.background = '#f9fafb';
+      h.style.fontWeight = '700';
+      box.appendChild(h);
+      items.forEach(function(s){ box.appendChild(tarjeta(s)); });
+    });
+  }
+
+  /* ---------- kanban ---------- */
+  function renderKanban(){
+    var box = $('kanbanView'); if(!box) return;
+    box.textContent = '';
+    var c = contar();
+    GRUPOS.forEach(function(g){
+      var col = el('div', 'kanban-col');
+      col.setAttribute('data-grupo', g.id);
+      col.setAttribute('data-etapa', g.etapa);
+      var h = el('h3');
+      h.appendChild(el('span', null, g.nom));
+      h.appendChild(el('span', 'n', c[g.id] || 0));
+      col.appendChild(h);
+      var cards = el('div', 'kanban-cards');
+      var items = LISTA.filter(function(s){ return etapaDe(s) === g.id; });
+      if(!items.length) cards.appendChild(el('div', 'k-empty', 'Sin conversaciones'));
+      items.forEach(function(s){ cards.appendChild(kcard(s, g.id)); });
+      col.appendChild(cards);
+
+      col.addEventListener('dragover', function(ev){ ev.preventDefault(); col.classList.add('over'); });
+      col.addEventListener('dragleave', function(){ col.classList.remove('over'); });
+      col.addEventListener('drop', function(ev){
+        ev.preventDefault(); col.classList.remove('over');
+        var ses = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
+        if(ses) moverEtapa(ses, g.etapa);
       });
-      document.title = (totalNoLeidos>0 ? '('+totalNoLeidos+') ' : '') + 'PG del Campo — Panel de Chat';
-      if(SEL) pintarAlerta(SESMETA[SEL]);
-    }catch(e){ setEstado('⚠ sin conexión'); mostrarBarra('No pude conectarme a <b>'+AGENT+'</b>. Revisá la URL (tiene que ser la del bot, terminada en onrender.com) y que el servicio esté despierto.'); }
+      box.appendChild(col);
+    });
+  }
+
+  function kcard(s, grupo){
+    var card = el('div', 'k-card ' + grupo);
+    card.setAttribute('draggable', 'true');
+    var top = el('div', 'k-card-top');
+    top.appendChild(el('span', null, nombreDe(s)));
+    var nl = parseInt(s.no_leidos || 0, 10) || 0;
+    if(nl > 0) top.appendChild(el('span', 'badge badge-unread', nl));
+    card.appendChild(top);
+    var meta = el('div', 'k-card-meta');
+    meta.appendChild(el('span', null, s.tel ? '📱 ' + s.tel : String(s.sesion || '').replace(/^web_/, '')));
+    meta.appendChild(el('span', null, s.ultima ? hhmm(s.ultima) : ''));
+    card.appendChild(meta);
+    if(s.notas) card.appendChild(el('div', 'k-card-nota', '📝 ' + String(s.notas).slice(0, 70)));
+    if(s.alerta === 'fallido') card.appendChild(el('div', 'k-card-nota', '⚠ el aviso al dueño no salió'));
+    card.addEventListener('click', function(){ cambiarVista('chat'); seleccionar(s.sesion, nombreDe(s)); });
+    card.addEventListener('dragstart', function(ev){ try{ ev.dataTransfer.setData('text/plain', s.sesion); }catch(e){} });
+    return card;
+  }
+
+  async function moverEtapa(sesion, etapa){
+    if(!sesion || !etapa) return;
+    try{
+      var r = await fetch(api('/chat-crm'), { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ sesion: sesion, etapa: etapa }) });
+      var d = await r.json();
+      if(d && d.ok){
+        if(SES[sesion]) SES[sesion].etapa = etapa;
+        toast('Movido a ' + nombreGrupo(etapaDe({ etapa: etapa })));
+        cargarSesiones();
+        if(SEL === sesion) pintarFichaSelect(etapa);
+      }else{
+        toast('No se pudo mover: ' + ((d && d.error) || 'error'));
+      }
+    }catch(e){ toast('Sin conexión: no se movió'); }
+  }
+
+  /* ---------- conversación ---------- */
+  function seleccionar(sesion, nombre){
+    SEL = sesion; SELNOM = nombre || sesion; lastTs = 0;
+    try{ localStorage.setItem('pg_panel_sel', sesion); }catch(e){}
+    $('chatTitle').textContent = SELNOM;
+    $('chatSub').textContent = String(sesion || '').replace(/^web_/, 'web · ');
+    $('inputRow').style.display = 'flex';
+    $('atajos').style.display = 'flex';
+    $('btnModo').style.display = 'inline-block';
+    $('msgs').textContent = '';
+    try{ if(!window.matchMedia || !window.matchMedia('(max-width:960px)').matches) $('crmPanel').classList.add('open'); }catch(e){}
+    pintarAlerta(SES[SEL]);
+    cargarMensajes(true);
+    cargarFicha();
   }
 
   function pintarAlerta(s){
-    var el=$('chatAlerta');
-    if(!s || !s.alerta){ el.style.display='none'; el.textContent=''; return; }
-    if(s.alerta==='enviado'){ el.style.display='none'; el.textContent=''; return; }
-    el.style.display='inline-block';
-    el.textContent = (s.alerta==='fallido') ? '⚠ aviso al dueño NO salió' : ('aviso: '+s.alerta);
+    var e = $('chatAlerta'); if(!e) return;
+    if(!s || !s.alerta || s.alerta === 'enviado'){ e.style.display = 'none'; e.textContent = ''; return; }
+    e.style.display = 'inline-block';
+    e.textContent = (s.alerta === 'fallido') ? '⚠ aviso al dueño NO salió' : ('aviso: ' + s.alerta);
   }
 
-  function seleccionar(sesion, nombre){
-    SEL=sesion; lastTs=0;
-    try{ localStorage.setItem('pg_panel_sel',sesion); }catch(e){}
-    $('chatHead').style.display='flex';
-    $('inputRow').style.display='flex';
-    $('chatNom').textContent=nombre||sesion;
-    $('msgs').innerHTML='';
-    pintarAlerta(SESMETA[SEL]);
-    cargarSesiones();
-    cargarMensajes(true);
-  }
-
-  function pintar(m){
-    var div=document.createElement('div');
-    var rol=(m.rol==='cliente')?'cliente':(m.rol==='humano'?'humano':(m.rol==='nota'?'nota':'bot'));
-    div.className='m '+rol;
-    div.textContent=m.texto||'';
-    if(rol!=='nota'){
-      var meta=document.createElement('span'); meta.className='meta';
-      meta.textContent=(rol==='cliente'?'Cliente':(rol==='humano'?'Vos':'Asistente'))+' · '+hhmm(m.ts);
-      div.appendChild(meta);
+  function pintarMsg(m){
+    var rol = (m.rol === 'cliente') ? 'cliente' : (m.rol === 'humano' ? 'humano' : (m.rol === 'nota' ? 'nota' : 'bot'));
+    var d = el('div', 'm ' + rol, m.texto || '');
+    if(rol !== 'nota'){
+      d.appendChild(el('span', 'meta', (rol === 'cliente' ? 'Cliente' : (rol === 'humano' ? 'Vos' : 'Asistente')) + ' · ' + hhmm(m.ts)));
     }
-    $('msgs').appendChild(div);
+    $('msgs').appendChild(d);
   }
 
   async function cargarMensajes(reset){
     if(!SEL) return;
     try{
-      var r=await fetch(api('/chat-messages')+'&sesion='+encodeURIComponent(SEL)+'&after='+(reset?0:lastTs));
-      var d=await r.json();
+      var r = await fetch(api('/chat-messages') + '&sesion=' + encodeURIComponent(SEL) + '&after=' + (reset ? 0 : lastTs));
+      var d = await r.json();
       if(!d.ok) return;
-      modoSel=d.modo||'bot';
+      modoSel = d.modo || 'bot';
       actualizarModoUI();
-      if(reset) $('msgs').innerHTML='';
-      var nuevosCliente=0;
-      (d.mensajes||[]).forEach(function(m){ pintar(m); if(m.ts>lastTs) lastTs=m.ts; if(m.rol==='cliente') nuevosCliente++; });
-      if(nuevosCliente>0 && !reset) beep();
-      if(d.mensajes&&d.mensajes.length) $('msgs').scrollTop=$('msgs').scrollHeight;
+      if(reset) $('msgs').textContent = '';
+      var nuevos = 0;
+      (d.mensajes || []).forEach(function(m){ pintarMsg(m); if(m.ts > lastTs) lastTs = m.ts; if(m.rol === 'cliente') nuevos++; });
+      if(nuevos > 0 && !reset) beep();
+      if(d.mensajes && d.mensajes.length) $('msgs').scrollTop = $('msgs').scrollHeight;
     }catch(e){}
   }
 
   function actualizarModoUI(){
-    var tag=$('chatModo'); tag.className='tag '+(modoSel==='humano'?'humano':'bot'); tag.textContent=modoSel;
-    var btn=$('btnModo');
-    if(modoSel==='humano'){ btn.textContent='Devolver al asistente'; btn.className='modoBtn soltar'; }
-    else{ btn.textContent='Tomar conversación'; btn.className='modoBtn tomar'; }
+    var tag = $('chatModo');
+    tag.className = 'tag ' + (modoSel === 'humano' ? 'humano' : 'bot');
+    tag.textContent = modoSel;
+    var btn = $('btnModo');
+    if(modoSel === 'humano'){ btn.textContent = 'Devolver al asistente'; btn.className = 'btn-bot'; }
+    else{ btn.textContent = 'Tomar conversación'; btn.className = 'btn-humano'; }
   }
 
   async function cambiarModo(){
     if(!SEL) return;
-    var nuevo=(modoSel==='humano')?'bot':'humano';
+    var nuevo = (modoSel === 'humano') ? 'bot' : 'humano';
     try{
-      await fetch(api('/chat-mode'),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sesion:SEL,modo:nuevo})});
-      modoSel=nuevo; actualizarModoUI(); cargarMensajes(false); cargarSesiones();
-    }catch(e){}
+      var r = await fetch(api('/chat-mode'), { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ sesion: SEL, modo: nuevo }) });
+      var d = await r.json();
+      if(d && d.ok){ modoSel = d.modo || nuevo; actualizarModoUI(); cargarMensajes(false); cargarSesiones(); }
+      else toast('No se pudo cambiar el modo');
+    }catch(e){ toast('Sin conexión: no se cambió el modo'); }
   }
 
   async function enviar(){
-    var t=$('txt').value.trim(); if(!t||!SEL) return;
-    $('txt').value='';
+    var t = $('txt').value.trim();
+    if(!t || !SEL) return;
+    $('txt').value = '';
     try{
-      await fetch(api('/chat-reply'),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sesion:SEL,texto:t})});
-      modoSel='humano'; actualizarModoUI(); cargarMensajes(false);
-    }catch(e){}
+      var r = await fetch(api('/chat-reply'), { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ sesion: SEL, texto: t }) });
+      var d = await r.json();
+      if(d && d.ok){ modoSel = 'humano'; actualizarModoUI(); cargarMensajes(false); }
+      else { toast('No se envió: ' + ((d && d.error) || 'error')); $('txt').value = t; }
+    }catch(e){ toast('Sin conexión: el mensaje no salió'); $('txt').value = t; }
   }
 
   function beep(){
     try{
-      var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
-      var ctx=new AC(); var o=ctx.createOscillator(); var g=ctx.createGain();
-      o.connect(g); g.connect(ctx.destination); o.frequency.value=880; o.type='sine';
-      g.gain.setValueAtTime(0.08,ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.35);
-      o.start(); o.stop(ctx.currentTime+0.35);
+      var AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+      var ctx = new AC(), o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.frequency.value = 880; o.type = 'sine';
+      g.gain.setValueAtTime(0.07, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+      o.start(); o.stop(ctx.currentTime + 0.3);
     }catch(e){}
   }
 
-  function conectar(){
-    AGENT=normalizar($('inUrl').value)||DEF;
-    $('inUrl').value=AGENT;
-    KEY=$('inKey').value.trim();
-    if(!KEY){ setEstado(''); mostrarBarra('Falta la clave. Si en Render nunca pusiste <b>ADMIN_KEY</b>, la clave de fábrica es <b>pg-admin</b>.'); return; }
-    try{ localStorage.setItem('pg_panel_url',AGENT); localStorage.setItem('pg_panel_key',KEY); }catch(e){}
-    cargarSalud();
-    cargarSesiones();
-    if(tSes) clearInterval(tSes); tSes=setInterval(cargarSesiones,5000);
-    if(tMsg) clearInterval(tMsg); tMsg=setInterval(function(){ cargarMensajes(false); },3000);
+  /* ---------- ficha CRM ---------- */
+  function pintarFichaSelect(etapa){
+    var s = $('selEtapa'); if(!s) return;
+    var e = String(etapa || '');
+    var ok = false;
+    for(var i=0;i<s.options.length;i++){ if(s.options[i].value === e) ok = true; }
+    s.value = ok ? e : '';
   }
 
+  function pintarFicha(meta, carrito, sesion){
+    meta = meta || {};
+    var nombre = meta.nombre || (SELNOM || '');
+    var tel = meta.tel || String(sesion || '').replace(/^wa_/, '').replace(/^web_/, '');
+    var box = $('fichaCliente');
+    box.textContent = '';
+    box.appendChild(el('div', null, nombre || 'Cliente'));
+    if(meta.tel || /^wa_/.test(String(sesion || ''))){
+      var linea = el('div', null);
+      linea.appendChild(el('span', null, 'WhatsApp: '));
+      var a = el('a', null, tel);
+      a.href = 'https://wa.me/' + String(tel).replace(/\D/g, '');
+      a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.style.color = '#2e5a27'; a.style.fontWeight = '600';
+      linea.appendChild(a);
+      box.appendChild(linea);
+    }
+    box.appendChild(el('div', null, 'Sesión: ' + String(sesion || '')));
+
+    pintarFichaSelect(meta.etapa);
+    $('txtNotas').value = meta.notas ? String(meta.notas) : '';
+    $('okFicha').textContent = '';
+
+    var c = $('fichaCarrito');
+    c.textContent = '';
+    carrito = carrito || [];
+    if(!carrito.length){
+      c.appendChild(el('div', null, 'Sin productos en el carrito.'));
+      c.style.color = '#6b7280'; c.style.fontSize = '.8rem';
+    }else{
+      c.style.color = ''; c.style.fontSize = '';
+      var total = 0;
+      carrito.forEach(function(it){
+        var cant = parseInt(it.cantidad, 10) || 0;
+        var precio = parseFloat(it.precio) || 0;
+        total += cant * precio;
+        var row = el('div', 'cart-row');
+        row.appendChild(el('span', null, cant + ' × ' + (it.nombre || it.id || 'Producto')));
+        row.appendChild(el('span', null, money(cant * precio)));
+        c.appendChild(row);
+      });
+      var tot = el('div', 'cart-total');
+      tot.appendChild(el('span', null, 'Total'));
+      tot.appendChild(el('span', null, money(total)));
+      c.appendChild(tot);
+    }
+
+    var act = $('fichaActividad');
+    act.textContent = '';
+    act.appendChild(el('div', null, 'Último mensaje: ' + (meta.ultima ? fechaHora(meta.ultima) : '—')));
+    act.appendChild(el('div', null, 'Estado del bot: ' + (meta.estado || '—')));
+    act.appendChild(el('div', null, 'Modo: ' + (meta.modo || 'bot')));
+    if(meta.crmTs) act.appendChild(el('div', null, 'Ficha editada: ' + fechaHora(meta.crmTs)));
+  }
+
+  async function cargarFicha(){
+    if(!SEL) return;
+    try{
+      var r = await fetch(api('/chat-ficha') + '&sesion=' + encodeURIComponent(SEL));
+      if(r.ok){
+        var d = await r.json();
+        if(d && d.ok){ pintarFicha(d.meta, d.carrito, SEL); return; }
+      }
+      /* Bot con una version anterior: se pide igual por /chat-crm,
+         que responde lo mismo (aunque toca crmTs). */
+      var r2 = await fetch(api('/chat-crm'), { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ sesion: SEL }) });
+      var d2 = await r2.json();
+      if(d2 && d2.ok) pintarFicha(d2.meta, d2.carrito, SEL);
+    }catch(e){}
+  }
+
+  async function guardarFicha(){
+    if(!SEL) return;
+    var etapa = $('selEtapa').value;
+    var notas = $('txtNotas').value;
+    var btn = $('btnFichaGuardar');
+    btn.disabled = true;
+    $('okFicha').textContent = 'Guardando…';
+    try{
+      var r = await fetch(api('/chat-crm'), { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ sesion: SEL, etapa: etapa, notas: notas }) });
+      var d = await r.json();
+      if(d && d.ok){
+        if(SES[SEL]){ SES[SEL].etapa = etapa || undefined; SES[SEL].notas = notas || undefined; }
+        $('okFicha').textContent = 'Guardado ✔';
+        cargarSesiones();
+        if(d.carrito) pintarFicha(d.meta, d.carrito, SEL);
+      }else{
+        $('okFicha').textContent = '⚠ ' + ((d && d.error) || 'no se pudo guardar');
+      }
+    }catch(e){ $('okFicha').textContent = '⚠ sin conexión'; }
+    btn.disabled = false;
+    setTimeout(function(){ var k = $('okFicha'); if(k) k.textContent = ''; }, 4200);
+  }
+
+  /* ---------- atajos ---------- */
+  function pintarAtajos(){}
+  function aplicarAtajo(v){
+    var k = String(v || '').trim().toLowerCase();
+    return ATAJOS[k] || null;
+  }
+
+  /* ---------- vistas / conexión ---------- */
+  function cambiarVista(v){
+    VISTA = (v === 'kanban') ? 'kanban' : 'chat';
+    $('kanbanView').style.display = (VISTA === 'kanban') ? 'flex' : 'none';
+    $('chatView').style.display = (VISTA === 'kanban') ? 'none' : 'flex';
+    $('btnTabKanban').classList.toggle('active', VISTA === 'kanban');
+    $('btnTabChat').classList.toggle('active', VISTA === 'chat');
+    if(VISTA === 'kanban') renderKanban();
+  }
+
+  function conectar(){
+    AGENT = normalizar($('inUrl').value) || DEF;
+    $('inUrl').value = AGENT;
+    KEY = $('inKey').value.trim();
+    if(!KEY){ barra('Falta la clave. Si en Render nunca pusiste ADMIN_KEY, la clave de fábrica es pg-admin.'); return; }
+    try{ localStorage.setItem('pg_panel_url', AGENT); localStorage.setItem('pg_panel_key', KEY); }catch(e){}
+    cargarSalud();
+    cargarSesiones();
+    if(tSes) clearInterval(tSes); tSes = setInterval(cargarSesiones, 5000);
+    if(tMsg) clearInterval(tMsg); tMsg = setInterval(function(){ cargarMensajes(false); }, 3000);
+  }
+
+  /* ---------- eventos ---------- */
   $('btnConn').addEventListener('click', conectar);
+  $('btnTabChat').addEventListener('click', function(){ cambiarVista('chat'); });
+  $('btnTabKanban').addEventListener('click', function(){ cambiarVista('kanban'); });
   $('btnEnviar').addEventListener('click', enviar);
   $('btnModo').addEventListener('click', cambiarModo);
-  $('txt').addEventListener('keydown', function(e){ if(e.key==='Enter') enviar(); });
+  $('btnFichaGuardar').addEventListener('click', guardarFicha);
+  $('btnFicha').addEventListener('click', function(){ $('crmPanel').classList.toggle('open'); });
+  $('searchBox').addEventListener('input', renderLista);
+  $('txt').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); enviar(); } });
+  $('txt').addEventListener('input', function(e){
+    var t = aplicarAtajo(e.target.value);
+    if(t) e.target.value = t;
+  });
 
-  // Arranque: clave y URL recordadas, o las que vengan en el enlace (?key=...)
+  (function armarAtajos(){
+    var box = $('atajos');
+    var lista = [
+      { k:'/pago', t:'💳 /pago' },
+      { k:'/envio', t:'🛵 /envio' },
+      { k:'/tienda', t:'🛒 /tienda' },
+      { k:'/estrellas', t:'⭐ /estrellas' },
+      { k:'/horario', t:'🕗 /horario' }
+    ];
+    lista.forEach(function(o){
+      var b = el('button', 'quick-chip', o.t);
+      b.addEventListener('click', function(){ $('txt').value = ATAJOS[o.k] || ''; $('txt').focus(); });
+      box.appendChild(b);
+    });
+  })();
+
   (function arranque(){
-    var qs=new URLSearchParams(location.search);
-    var k='', u='';
-    try{ k=localStorage.getItem('pg_panel_key')||''; u=localStorage.getItem('pg_panel_url')||''; }catch(e){}
-    if(qs.get('key')) k=qs.get('key');
-    if(qs.get('url')) u=qs.get('url');
-    if(!u) u=(location.protocol==='http:'||location.protocol==='https:')?location.origin:DEF;
-    $('inUrl').value=normalizar(u);
-    $('inKey').value=k||'';
+    var qs = new URLSearchParams(location.search);
+    var k = '', u = '';
+    try{ k = localStorage.getItem('pg_panel_key') || ''; u = localStorage.getItem('pg_panel_url') || ''; }catch(e){}
+    if(qs.get('key')) k = qs.get('key');
+    if(qs.get('url')) u = qs.get('url');
+    if(!u) u = (location.protocol === 'https:' || location.protocol === 'http:') ? location.origin : DEF;
+    $('inUrl').value = normalizar(u);
+    $('inKey').value = k || '';
+    try{ FILTRO = localStorage.getItem('pg_filtro') || 'todas'; }catch(e){}
+    cambiarVista('chat');
+    renderChips();
     if(k) conectar();
-    else { setEstado('Poné la clave y dale Conectar'); }
+    else barra('Poné la clave y dale Conectar. Si nunca pusiste ADMIN_KEY en Render, la clave de fábrica es pg-admin.');
   })();
 })();
 </script>
