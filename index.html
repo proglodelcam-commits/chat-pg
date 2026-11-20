@@ -2,15 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#1A4D29">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PG Chat">
-<link rel="apple-touch-icon" href="./apple-touch-icon.png">
-<link rel="icon" href="./icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>PG del Campo — Panel de Chat</title>
 <style>
@@ -55,27 +47,6 @@
   .input input{flex:1;padding:11px;border:1px solid #ccc;border-radius:8px;font-size:14px}
   .input button{background:var(--verde);color:#fff;border:0;padding:0 18px;border-radius:8px;font-weight:700;cursor:pointer}
   .vacio{margin:auto;color:#999;text-align:center;padding:30px;line-height:1.5}
-  #btnVolver{display:none;background:none;border:0;font-size:26px;line-height:1;color:var(--verde);padding:0 10px 0 0;cursor:pointer}
-  /* ---------- CELULAR: lista y chat a pantalla completa ---------- */
-  @media (max-width: 820px){
-    body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
-    header{padding:10px 12px;gap:8px}
-    header h1{font-size:15px;width:100%;margin-bottom:2px}
-    header input#inUrl{width:100%;font-size:12px;padding:8px}
-    header input#inKey{width:calc(100% - 108px);padding:8px}
-    header button{padding:8px 14px}
-    .barra{font-size:11px;padding:6px 12px}
-    .wrap{flex:1 1 auto;height:auto;min-height:0;display:block;position:relative}
-    .lista{width:100%;height:100%;border-right:0}
-    .chat{display:none;height:100%}
-    body.chatAbierto .lista{display:none}
-    body.chatAbierto .chat{display:flex}
-    #btnVolver{display:inline-block}
-    .chatHead{padding:8px 10px}
-    .msgs{padding:10px}
-    .m{max-width:86%;font-size:14px}
-    .input{padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom))}
-  }
 </style>
 </head>
 <body>
@@ -91,7 +62,7 @@
   <div class="lista" id="lista"><div class="vacio">Conectá arriba para ver las conversaciones.</div></div>
   <div class="chat">
     <div class="chatHead" id="chatHead" style="display:none">
-      <div style="display:flex;align-items:center;min-width:0"><button id="btnVolver" title="Volver a la lista">‹</button><b id="chatNom">—</b> <span id="chatModo" class="tag bot">bot</span> <span id="chatAlerta" class="warn" style="display:none"></span></div>
+      <div><b id="chatNom">—</b> <span id="chatModo" class="tag bot">bot</span> <span id="chatAlerta" class="warn" style="display:none"></span></div>
       <button id="btnModo" class="modoBtn tomar">Tomar conversación</button>
     </div>
     <div class="msgs" id="msgs"><div class="vacio">Elegí una conversación de la izquierda.</div></div>
@@ -104,7 +75,14 @@
 <script id="panelScript">
 (function(){
   var $=function(id){return document.getElementById(id);};
-  var DEF='https://pg-del-campo-agente.onrender.com'; /* URL REAL del bot en Render */
+  var DEF='https://pg-del-campo-bot.onrender.com';
+  // Si abres el panel desde el propio bot (/panel), usa esa misma direccion.
+  // Asi sirve igual en pg-del-campo-bot o en cualquier otra direccion.
+  try{
+    if(location.protocol==='http:'||location.protocol==='https:'){
+      if(/onrender\.com$/i.test(location.hostname)) DEF=location.origin;
+    }
+  }catch(e){}
   var AGENT=DEF, KEY='', SEL=null, modoSel='bot', lastTs=0, tSes=null, tMsg=null;
   var SESMETA={}, BUILD='';
 
@@ -147,7 +125,7 @@
   async function cargarSesiones(){
     try{
       var r=await fetch(api('/chat-sessions'));
-      if(r.status===401){ setEstado('⚠ clave incorrecta'); mostrarBarra('La <b>clave no coincide</b>. Ese bot ya tiene una clave propia configurada en Render (la de fábrica <b>pg-admin</b> NO sirve). Escribí la clave que pusiste en Render → tu servicio → pestaña <b>Environment</b> → <b>ADMIN_KEY</b>. Si no la recordás, cambiala ahí: Environment → Edit → ADMIN_KEY = tu nueva clave → Save (el servicio se reinicia solo) y volvé a conectar.'); return; }
+      if(r.status===401){ setEstado('⚠ clave incorrecta'); mostrarBarra('La clave no coincide con la del bot. Si en Render nunca pusiste <b>ADMIN_KEY</b>, la clave de fábrica es <b>pg-admin</b>.'); return; }
       var d=await r.json();
       if(!d.ok){ setEstado('⚠ '+(d.error||'no autorizado')); return; }
       setEstado('Conectado ✔ · ' + new Date().toLocaleTimeString('es-NI',{hour:'2-digit',minute:'2-digit'}));
@@ -190,7 +168,6 @@
     $('chatHead').style.display='flex';
     $('inputRow').style.display='flex';
     $('chatNom').textContent=nombre||sesion;
-    document.body.classList.add('chatAbierto');
     $('msgs').innerHTML='';
     pintarAlerta(SESMETA[SEL]);
     cargarSesiones();
@@ -266,7 +243,7 @@
     AGENT=normalizar($('inUrl').value)||DEF;
     $('inUrl').value=AGENT;
     KEY=$('inKey').value.trim();
-    if(!KEY){ setEstado(''); mostrarBarra('Falta la clave. Escribí la <b>clave admin</b> que configuraste en Render (variable <b>ADMIN_KEY</b>). En este bot la clave de fábrica <b>pg-admin</b> ya no aplica.'); return; }
+    if(!KEY){ setEstado(''); mostrarBarra('Falta la clave. Si en Render nunca pusiste <b>ADMIN_KEY</b>, la clave de fábrica es <b>pg-admin</b>.'); return; }
     try{ localStorage.setItem('pg_panel_url',AGENT); localStorage.setItem('pg_panel_key',KEY); }catch(e){}
     cargarSalud();
     cargarSesiones();
@@ -277,13 +254,6 @@
   $('btnConn').addEventListener('click', conectar);
   $('btnEnviar').addEventListener('click', enviar);
   $('btnModo').addEventListener('click', cambiarModo);
-  var bv=document.getElementById('btnVolver');
-  if(bv) bv.addEventListener('click', function(){ document.body.classList.remove('chatAbierto'); SEL=null; cargarSesiones(); });
-  document.addEventListener('visibilitychange', function(){
-    if(document.hidden) return;
-    cargarSalud(); cargarSesiones();
-    if(SEL) cargarMensajes(true);
-  });
   $('txt').addEventListener('keydown', function(e){ if(e.key==='Enter') enviar(); });
 
   // Arranque: clave y URL recordadas, o las que vengan en el enlace (?key=...)
@@ -293,23 +263,13 @@
     try{ k=localStorage.getItem('pg_panel_key')||''; u=localStorage.getItem('pg_panel_url')||''; }catch(e){}
     if(qs.get('key')) k=qs.get('key');
     if(qs.get('url')) u=qs.get('url');
-    /* Si quedó guardada la URL vieja (pg-del-campo-bot), la corregimos sola */
-    if(u && /pg-del-campo-bot\.onrender\.com/i.test(u)) u=DEF;
-    /* El panel NO vive en el servidor del bot: usamos siempre la URL real */
-    if(!u) u=DEF;
+    if(!u) u=(location.protocol==='http:'||location.protocol==='https:')?location.origin:DEF;
     $('inUrl').value=normalizar(u);
     $('inKey').value=k||'';
     if(k) conectar();
     else { setEstado('Poné la clave y dale Conectar'); }
   })();
 })();
-
-/* ---------- App instalable: service worker ---------- */
-if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(){});
-  });
-}
 </script>
 </body>
 </html>
